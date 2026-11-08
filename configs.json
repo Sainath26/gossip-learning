@@ -1,0 +1,53 @@
+{
+  "experiment_name": "pilot 2",
+
+  "data": {
+    "survey_year": 2018,
+    "sample_fraction": 0.2,
+    "min_rows_per_state": 1000,
+    "test_fraction": 0.2,
+    "group_occupation_birthplace": true,
+    "standardise_on": "train"
+  },
+
+  "fairness": {
+    "protected_attribute": "race",
+    "income_threshold": 50000
+  },
+
+  "graph": {
+    "topology": "border",
+    "island_links": { "AK": "WA", "HI": "CA", "PR": "FL" },
+    "random_graph_per_seed": true
+  },
+
+  "gossip": {
+    "lambda": 0.25,
+    "rounds": 50,
+    "eval_checkpoint_every": 5
+  },
+
+  "training": {
+    "hidden_units": 32,
+    "learning_rate": 0.05,
+    "batch_size": 128,
+    "local_epochs": 1
+  },
+
+  "baselines": {
+    "fedavg": true,
+    "fedavg_rounds": 25,
+    "local_only": true,
+    "local_only_epochs": 25
+  },
+
+  "seeds": 100,
+
+  "compute": {
+    "workers": 4
+  },
+
+  "output": {
+    "results_dir": "results"
+  }
+}

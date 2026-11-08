@@ -6,7 +6,7 @@ commands on stdin: pause, resume, step, delay <seconds>, stop.
 The finished result is saved to results/watch/, never next to the batch results.
 
 Example (normally started by server.py):
-    python watch.py --setting gossip --topology ring --method fair2zero --delay 1
+    python control_pane/watch.py --setting gossip --topology ring --method fair2zero --delay 1
 
 How it works: the normal training functions (fed.run_fl / gossip.run_gossip)
 are called with an on_round hook. After every round the hook prints the
@@ -21,8 +21,8 @@ Events printed (one JSON object per line, field "type"):
   end      the run finished; "path" is where the result was saved
   stopped  the run was stopped early; nothing is saved
 
-Note: this imports fed, gossip, aggregation and model, so it must run with
-the experiment folder (where those files live) as the working directory.
+Note: the data and results paths are relative, so this must run with the
+experiment folder as the working directory.
 """
 
 import argparse
@@ -35,10 +35,13 @@ from pathlib import Path
 
 import numpy as np
 
-import federated_learning_loop
-import gossip_learning_loop
-from aggregation import fedavg_weights
-from model import evaluate, load_split
+# The training code lives in the experiment folder, one level above this file
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import archive.federated_learning_loop as federated_learning_loop
+import archive.gossip_learning_loop as gossip_learning_loop
+from archive.aggregation import fedavg_weights
+from archive.model import evaluate, load_split
 
 # Both threads print, so each event line is written under a lock to keep
 # lines from interleaving
@@ -140,7 +143,7 @@ def main():
     # fl: fedavg / fairfed / fair2zero; gossip: avg / fair2zero
     p.add_argument("--method", default="avg")
     p.add_argument("--metric", choices=["spd", "eod"], default="spd")
-    p.add_argument("--topology", choices=["ring", "full"], default="ring")
+    p.add_argument("--topology", choices=["ring", "full", "kreg3"], default="ring")
     p.add_argument("--beta", type=float, default=0.05)
     p.add_argument("--rounds", type=int, default=25)
     p.add_argument("--seed", type=int, default=1)

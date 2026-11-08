@@ -3,7 +3,7 @@ Tables and figures for the presentation, as PNG files to paste into slides.
 
   table1_fl_vs_paper.png            FL results next to the paper's Table 2
   table2_all_results.png            every configuration, best values in bold
-  table3_fair2zero_by_topology.png  Fair2Zero (trained on SPD) against its
+  table3_fair2zero_by_topology.png  Fair2Zero (targeting SPD) against its
                                     baseline, one row per setup
   fig1_fl_reproduction.png          bars from make_figures.py: ours vs the paper
   fig2_topology_curves.png          |SPD| per round on each sparse topology
@@ -29,8 +29,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-import make_figures as mf
-import run
+import archive.make_figures as mf
+import archive.run as run
 
 N_SEEDS = 100
 WHITE = "#ffffff"
@@ -175,13 +175,13 @@ def table_all_results(summary, path):
                "within a setup (same setting, topology and rounds): highest accuracy, lowest "
                "|SPD| and |EOD|. Gossip values are averaged over the 10 nodes; federated values "
                "come from the one global model.",
-               ["Setting", "Topology", "Rounds", "Method", "Trained on", "Accuracy",
+               ["Setting", "Topology", "Rounds", "Method", "Target metric", "Accuracy",
                 "|SPD|", "|EOD|", "Messages"],
-               [0.95, 1.45, 0.7, 0.95, 0.95, 1.55, 1.55, 1.55, 0.85], rows, breaks[1:])
+               [0.95, 1.45, 0.7, 0.95, 1.25, 1.55, 1.55, 1.55, 0.85], rows, breaks[1:])
 
 
 def _setup_pairs(summary):
-    # For each setup with results: (setup, baseline row, Fair2Zero row trained on SPD)
+    # For each setup with results: (setup, baseline row, Fair2Zero row targeting SPD)
     pairs = []
     for setup in SETUPS:
         base = find(summary, *setup, "fedavg" if setup[0] == "fl" else "avg", "-")
@@ -192,7 +192,7 @@ def _setup_pairs(summary):
 
 
 def table_fair2zero(summary, path):
-    # Table 3: the slide-sized table, Fair2Zero (trained on SPD) in every setup.
+    # Table 3: the slide-sized table, Fair2Zero (targeting SPD) in every setup.
     # "Change" is the paired difference against the baseline on the same seeds
     pairs = _setup_pairs(summary)
     best = min(round(f["spd_mean"], 4) for _, _, f in pairs)
@@ -202,7 +202,7 @@ def table_fair2zero(summary, path):
                      pm(b, "spd"), (pm(f, "spd"), round(f["spd_mean"], 4) == best),
                      f"{f['d_target_mean']:+.4f} ± {f['d_target_ci']:.4f}",
                      f"{f['better_in']}/{f['n_seeds']}", pm(f, "acc")])
-    draw_table(path, "Fair2Zero across setups (trained on SPD)",
+    draw_table(path, "Fair2Zero across setups (targeting SPD)",
                f"Mean ± 95% CI over {N_SEEDS} seeds. Baseline is FedAvg for federated learning "
                "and Avg for gossip. Change is the paired difference against the baseline "
                "(negative = fairer). Bold marks the lowest Fair2Zero |SPD|.",
@@ -244,14 +244,14 @@ def fig_topology_curves(results, path, rounds=100, beta=run.BETA):
     fig.legend(handles, labels, frameon=False, fontsize=9, loc="lower left",
                bbox_to_anchor=(0.06, 0.02), ncol=2, labelcolor=mf.INK)
     mf._titles(fig, "Fairness over the rounds on sparse topologies",
-               f"Fair2Zero trained on SPD. Mean node over {n_seeds} seeds, band = 95% CI.")
+               f"Fair2Zero targeting SPD. Mean node over {n_seeds} seeds, band = 95% CI.")
     fig.savefig(path, facecolor=WHITE)
     plt.close(fig)
 
 
 def fig_fairness_vs_messages(summary, path):
     # Figure 3: one row per setup, fewest messages at the top. Each row joins
-    # the baseline (blue) and Fair2Zero trained on SPD (orange), with 95% CIs,
+    # the baseline (blue) and Fair2Zero targeting SPD (orange), with 95% CIs,
     # so the length of the join is the fairness gained in that setup
     pairs = sorted(_setup_pairs(summary), key=lambda p: p[2]["messages"])
     fig, ax = plt.subplots(figsize=(9, 4.8), facecolor=WHITE)
@@ -285,7 +285,7 @@ def fig_fairness_vs_messages(summary, path):
     fig.legend(*ax.get_legend_handles_labels(), frameon=False, fontsize=9, loc="lower left",
                bbox_to_anchor=(0.26, 0.01), ncol=2, labelcolor=mf.INK)
     mf._titles(fig, "Fairness gained in each setup, ordered by messages sent",
-               f"Trained on SPD. Mean ± 95% CI over {N_SEEDS} seeds. The x-axis does not start at 0.")
+               f"Targeting SPD. Mean ± 95% CI over {N_SEEDS} seeds. The x-axis does not start at 0.")
     fig.savefig(path, facecolor=WHITE)
     plt.close(fig)
 

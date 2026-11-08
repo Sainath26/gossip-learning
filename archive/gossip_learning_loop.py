@@ -34,8 +34,8 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from aggregation import average_models, fair2zero_gaps, fedavg_weights, reweight
-from model import MLP, evaluate, load_split, train_one_epoch
+from baseline.aggregation import average_models, fair2zero_gaps, fedavg_weights, reweight
+from baseline.model import MLP, evaluate, load_split, train_one_epoch
 
 
 def _random_regular(n, k, rng):
@@ -128,6 +128,8 @@ def run_gossip(seed, method="avg", metric="spd", topology="ring", beta=0.05,
         m.load_state_dict(init.state_dict())
     # weights[i]: node i's weights over hood[i], starting proportional to size
     weights = [fedavg_weights(sizes[h]) for h in hood]
+    # raw[i]: the same before the floor and renormalising, carried between rounds
+    raw = list(weights)
     if on_round:
         on_round(0, {"client_sizes": sizes.tolist(), "neighbours": nbrs,
                      "hood": hood, "weights": [w.tolist() for w in weights]}, models)
@@ -161,7 +163,7 @@ def run_gossip(seed, method="avg", metric="spd", topology="ring", beta=0.05,
                 # (the gossip stand-in for FL's global accuracy)
                 ref_acc = np.average(local_acc[h], weights=sizes[h])
                 gaps = fair2zero_gaps([local_fair[j] for j in h], local_acc[h], ref_acc)
-                weights[i] = reweight(weights[i], gaps, beta, eps)
+                raw[i], weights[i] = reweight(raw[i], gaps, beta, eps)
             merged.append(average_models([states[j] for j in h], weights[i]))
         for m, s in zip(models, merged):
             m.load_state_dict(s)

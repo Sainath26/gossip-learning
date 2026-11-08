@@ -11,7 +11,8 @@ How the pieces fit together each round (Algorithm 1 of the paper):
        FairFed    d_i = |F_i - F_global| (distance from the global level)
                                                      fair2zero_gaps / fairfed_gaps
   3. Shift weight away from clients whose gap is above the mean:
-       w_i <- w_i - beta * (d_i - mean(d)), floored at eps, renormalised
+       raw_i <- raw_i - beta * (d_i - mean(d))
+       w_i = raw_i floored at eps, renormalised; raw_i carries to next round
                                                                       reweight
   4. Average the clients' models with these weights.            average_models
 
@@ -54,18 +55,21 @@ def fairfed_gaps(local_fair, global_fair, local_acc, global_acc):
                      for f, a in zip(local_fair, local_acc)])
 
 
-def reweight(weights, gaps, beta, eps=1e-3):
+def reweight(raw, gaps, beta, eps=1e-3):
 # Algorithm 1, lines 5-8: penalise clients with above-average gaps,
-# floor at eps, then renormalise. The result is carried into the next round
+# floor at eps, then renormalise.
+# Returns (raw, weights): weights are used for averaging this round, and raw
+# (before the floor and renormalising) is passed back in next round
 #
 # Clients with a below-average gap gain weight, those above it lose weight;
-# beta controls how far the weights move each round. Because the output is
-# fed back in as `weights` next round, the shifts build up over the rounds.
+# beta controls how far the weights move each round. Because raw is fed back
+# in next round, the shifts build up over the rounds, and it can go negative:
+# a client below the floor has to climb back up from there.
 # The eps floor keeps every client in the average with a small positive weight.
     gaps = np.asarray(gaps, dtype=float)
-    w = np.asarray(weights, dtype=float) - beta * (gaps - gaps.mean())
-    w = np.maximum(w, eps)
-    return w / w.sum()
+    raw = np.asarray(raw, dtype=float) - beta * (gaps - gaps.mean())
+    w = np.maximum(raw, eps)
+    return raw, w / w.sum()
 
 
 def average_models(states, weights):
@@ -86,9 +90,17 @@ if __name__ == "__main__":
     w = fedavg_weights([600, 300, 100])
     d = fair2zero_gaps([-0.30, 0.10, None], [0.8, 0.8, 0.82], 0.80)
     print("gaps   ", d)              # third falls back to |0.82 - 0.80| = 0.02
-    w = reweight(w, d, beta=0.5)
+    raw, w = reweight(w, d, beta=0.5)
     print("weights", w)              # [0.52 0.32 0.16]
     assert np.allclose(w, [0.52, 0.32, 0.16])
+
+    # Below the floor the two differ: raw stays negative for the next round,
+    # the weight used for averaging is floored at eps, then renormalised
+    raw, w = reweight([0.02, 0.48, 0.50], [0.9, 0.1, 0.1], beta=0.1)
+    print("raw    ", raw)            # [-0.033  0.507  0.527]
+    print("floored", w)
+    assert np.allclose(raw, [-0.0333333, 0.5066667, 0.5266667])
+    assert np.allclose(w, np.array([1e-3, raw[1], raw[2]]) / (1e-3 + raw[1] + raw[2]))
 
     # Fairness-aware weights shift influence from the unfair big client
     # to the fair small one; FairFed anchors to the global level instead

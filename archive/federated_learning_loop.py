@@ -24,9 +24,9 @@ from pathlib import Path
 
 import torch
 
-from aggregation import (average_models, fair2zero_gaps, fairfed_gaps,
+from archive.aggregation import (average_models, fair2zero_gaps, fairfed_gaps,
                          fedavg_weights, reweight)
-from model import MLP, evaluate, load_split, train_one_epoch
+from archive.model import MLP, evaluate, load_split, train_one_epoch
 
 
 def run_name(method, metric, beta):
@@ -59,7 +59,7 @@ def run_fl(seed, method="fedavg", metric="spd", beta=0.05, eps=1e-3,
     torch.manual_seed(seed)
     g = torch.Generator().manual_seed(seed)
     global_model = MLP(n_features=X_all.shape[1])
-    weights = fedavg_weights([len(c[0]) for c in clients])
+    weights = raw = fedavg_weights([len(c[0]) for c in clients])
     if on_round:
         on_round(0, {"client_sizes": [len(c[0]) for c in clients]}, [global_model])
 
@@ -82,8 +82,9 @@ def run_fl(seed, method="fedavg", metric="spd", beta=0.05, eps=1e-3,
                                     local_acc, glob["accuracy"])
             else:
                 raise ValueError(f"unknown method {method}")
-            # Weights carry over: this round's update starts from last round's
-            weights = reweight(weights, gaps, beta, eps)
+            # This round's update starts from last round's raw weights
+            # (before the floor and renormalising), as in Algorithm 1
+            raw, weights = reweight(raw, gaps, beta, eps)
 
         # Each client trains one epoch from the current global model
         # (all clients share the generator g, so the batch order of the whole

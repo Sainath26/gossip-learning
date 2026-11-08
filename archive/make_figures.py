@@ -96,7 +96,7 @@ def fl_figure(summary, path):
     ax.set_ylim(0, max(max(ours), max(paper)) * 1.25)
     ax.legend(frameon=False, fontsize=9, loc="upper right", labelcolor=INK)
     _titles(fig, "Federated learning on Adult: reproduction vs paper",
-            f"Fairness-aware methods trained on SPD. Mean ± 95% CI over "
+            f"Fairness-aware methods targeting SPD. Mean ± 95% CI over "
             f"{n_seeds} seeds; accuracy shown as ours vs paper.")
     fig.savefig(path, facecolor=SURFACE)
     plt.close(fig)
@@ -161,7 +161,7 @@ def gossip_figure(results, summary, path, rounds=100, beta=0.05):
               bbox_to_anchor=(0, -0.13), ncol=2)
     fig.subplots_adjust(bottom=0.30)
     _titles(fig, "Gossip learning on a ring: Fair2Zero vs plain averaging",
-            f"10 nodes, 2 neighbours each; trained on SPD. "
+            f"10 nodes, 2 neighbours each; targeting SPD. "
             f"Mean over {n_seeds} seeds, band = 95% CI.")
     fig.savefig(path, facecolor=SURFACE)
     plt.close(fig)

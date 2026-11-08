@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experiment Pane</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+/* Design follows the literature-review pages: cream paper, Courier Prime headings, Source Serif text.
+   Colour meanings: terra = unfairness/harm, olive = improvement, slate = structure and the sender,
+   ochre = highlight and the receiver. Layout: controls left, live map centre, details right */
+:root {
+  --bg: #f5eddc; --bg2: #ede2cb; --card: #fbf7ee; --rule: #d8c8a8;
+  --text: #2a211b; --muted: #6e6253; --faint: #a39377;
+  --slate: #43607f; --terra: #b0502c; --olive: #5f7232; --ochre: #b27a1f;
+  --terra-bg: rgba(176, 80, 44, .10); --olive-bg: rgba(95, 114, 50, .11); --slate-bg: rgba(67, 96, 127, .10);
+  --land: #e2d3b4; --land-edge: #fbf7ee;  /* state fill and the borders between states */
+  --mono: "Courier Prime", "Courier New", Courier, monospace;
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1f1a15; --bg2: #29221b; --card: #2a231c; --rule: #463a2c;
+    --text: #ece2d0; --muted: #b0a28b; --faint: #7d705c;
+    --slate: #8fb0d4; --terra: #e08a63; --olive: #a9bf72; --ochre: #e0ac55;
+    --terra-bg: rgba(224, 138, 99, .13); --olive-bg: rgba(169, 191, 114, .12); --slate-bg: rgba(143, 176, 212, .12);
+    --land: #4a3e31; --land-edge: #1a1611;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1f1a15; --bg2: #29221b; --card: #2a231c; --rule: #463a2c;
+  --text: #ece2d0; --muted: #b0a28b; --faint: #7d705c;
+  --slate: #8fb0d4; --terra: #e08a63; --olive: #a9bf72; --ochre: #e0ac55;
+  --terra-bg: rgba(224, 138, 99, .13); --olive-bg: rgba(169, 191, 114, .12); --slate-bg: rgba(143, 176, 212, .12);
+  --land: #4a3e31; --land-edge: #1a1611;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--serif); }
+header { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; padding: 16px 22px 12px; border-bottom: 2px solid var(--text); }
+header h1 { font: 700 22px var(--mono); margin: 0; }
+header .status { color: var(--muted); font: 13px var(--mono); flex: 1; }
+main { display: grid; grid-template-columns: 260px minmax(0, 1fr) 350px; gap: 16px; padding: 16px 22px 28px; }
+@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+.pane { background: var(--card); border: 1.5px solid var(--rule); border-radius: 6px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pane h2 { font: 700 13px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 6px 0 0; padding-bottom: 4px; border-bottom: 1px solid var(--rule); }
+.pane h2:first-child { margin-top: 0; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field label { font: 12.5px var(--mono); color: var(--muted); }
+input, select { font: 14px var(--mono); padding: 5px 8px; border: 1px solid var(--faint); border-radius: 4px; background: var(--card); color: var(--text); width: 100%; }
+input[type=range] { padding: 0; border: none; accent-color: var(--terra); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font: 700 12.5px var(--mono); padding: 7px 10px; border-radius: 4px; border: 1px solid var(--faint); background: transparent; color: var(--text); cursor: pointer; flex: 1; }
+button:hover { background: var(--bg2); }
+button.primary { background: var(--slate); border-color: var(--slate); color: var(--card); }
+button.theme { flex: 0 0 auto; font-weight: 400; padding: 4px 10px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
+.stat { display: flex; justify-content: space-between; font: 13px var(--mono); }
+.stat b { font-weight: 700; }
+.note { color: var(--muted); font-size: 13px; margin: 0; }
+.saved { font: 12.5px var(--mono); overflow-wrap: anywhere; color: var(--olive); background: var(--olive-bg); border: 1px solid var(--olive); border-radius: 4px; padding: 6px 8px; }
+.saved.bad { color: var(--terra); background: var(--terra-bg); border-color: var(--terra); }
+#map { width: 100%; height: auto; display: block; }
+.state .shape { fill: var(--land); stroke: var(--land-edge); stroke-width: 1; }
+.state .heat { fill: var(--terra); stroke: none; pointer-events: none; }
+.state.send .shape { stroke: var(--slate); stroke-width: 3.5; }
+.state.recv .shape { stroke: var(--ochre); stroke-width: 3.5; }
+/* A halo in the page colour keeps labels readable on any shade */
+.state text { font: 700 10px var(--mono); text-anchor: middle; fill: var(--text); pointer-events: none;
+              stroke: var(--card); stroke-width: 3px; paint-order: stroke; }
+.state.small text { font-size: 8px; }
+.island { stroke: var(--faint); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.dc { fill: var(--card); stroke: var(--rule); }
+.inset { fill: none; stroke: var(--rule); stroke-dasharray: 3 3; }
+.inset-label { font: 9px var(--mono); fill: var(--muted); }
+.arrow { fill: none; stroke: var(--text); stroke-width: 2.5; }
+.arrow.latest { stroke: var(--ochre); stroke-width: 3.5; }
+.hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.dot { fill: var(--ochre); }
+.head { fill: var(--text); }
+#tip { position: fixed; pointer-events: none; background: var(--card); border: 1.5px solid var(--slate); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 18px rgba(40, 25, 10, .16); max-width: 320px; z-index: 5; }
+.card { border: 1.5px solid var(--slate); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; background: var(--card); }
+.card .title { font: 700 14px var(--mono); }
+.card table { width: 100%; border-collapse: collapse; font: 12.5px var(--mono); }
+.card td, .card th { padding: 3px 4px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.card td:first-child { white-space: normal; }
+.card td:first-child, .card th:first-child { text-align: left; font-family: var(--serif); }
+.card th { color: var(--muted); font-weight: 700; background: var(--bg2); }
+.better { color: var(--olive); font-weight: 700; } .worse { color: var(--terra); font-weight: 700; }
+.formula { font: 13px var(--mono); background: var(--bg2); padding: 7px 10px; border-radius: 4px; overflow-wrap: anywhere; }
+.chart { width: 100%; height: auto; }
+.chart .axis { stroke: var(--rule); }
+.chart .mean { fill: none; stroke: var(--slate); stroke-width: 2; }
+.chart .worst { fill: none; stroke: var(--terra); stroke-width: 2; stroke-dasharray: 5 3; }
+.chart text { font: 10px var(--mono); fill: var(--muted); }
+#log { list-style: none; margin: 0; padding: 0; font: 12px var(--mono); max-height: 220px; overflow-y: auto; }
+#log li { padding: 3px 4px; border-bottom: 1px solid var(--rule); cursor: pointer; }
+#log li:hover, #log li.sel { background: var(--bg2); }
+.legend { display: flex; align-items: center; gap: 8px; font: 12px var(--mono); color: var(--muted); }
+.legend .bar { flex: 1; height: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--land), var(--terra)); border: 1px solid var(--rule); }
+.key { display: flex; gap: 14px; font: 12px var(--mono); color: var(--muted); }
+.key span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2.5px solid; margin-right: 5px; vertical-align: -2px; }
+.key .s::before { border-color: var(--slate); } .key .r::before { border-color: var(--ochre); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Experiment Pane</h1>
+  <span class="status" id="status">Connecting to the server…</span>
+  <button class="theme" id="themeBtn" type="button">light / dark</button>
+</header>
+<main>
+  <section class="pane" aria-label="Controls">
+    <h2>Run</h2>
+    <div class="field"><label for="expName">Experiment name (results/&lt;name&gt;/)</label><input id="expName" type="text" value="pilot" spellcheck="false"></div>
+    <div class="field"><label for="lam">λ (weight a node keeps on its own model)</label><input id="lam" type="number" min="0" max="1" step="0.05" value="0.25"></div>
+    <div class="field"><label for="rounds">Rounds (51 exchanges each)</label><input id="rounds" type="number" min="1" max="500" value="50"></div>
+    <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="1" value="1"></div>
+    <div class="field"><label for="frac">Sample fraction</label>
+      <select id="frac"><option value="0.1">10%</option><option value="0.2" selected>20%</option><option value="0.5">50%</option></select></div>
+    <div class="row"><button class="primary" id="start">Start run</button><button id="stop">Stop run</button></div>
+    <div class="stat"><span>Run</span><b id="runProgress">–</b></div>
+    <div class="saved" id="saved" hidden></div>
+    <p class="note">The run goes at full speed and is saved when it finishes, with a copy of the config. The map replays it at the display speed below, so it can fall behind the run.</p>
+
+    <h2>Display</h2>
+    <div class="field"><label for="speed">Speed: <b id="speedLabel">5</b> exchanges per second</label><input id="speed" type="range" min="0" max="7" value="2"></div>
+    <div class="row"><button id="pause">Pause</button><button id="step">Step</button></div>
+    <button id="latest">Jump to latest</button>
+    <div class="stat"><span>Showing</span><b id="showProgress">–</b></div>
+    <div class="field"><label for="metric">Colour states by</label>
+      <select id="metric"><option value="spd">|SPD| (unfairness)</option><option value="eod">|EOD| (unfairness)</option><option value="accuracy">Accuracy (darker = lower)</option></select></div>
+    <div class="legend"><span id="legLo">0</span><span class="bar"></span><span id="legHi">0.25</span></div>
+    <div class="key"><span class="s">sender</span><span class="r">receiver</span></div>
+  </section>
+
+  <section class="pane" aria-label="Live map">
+    <h2 id="mapTitle">Live gossip</h2>
+    <svg id="map" viewBox="0 0 975 610" role="img" aria-label="Map of US states; arrows show recent model exchanges">
+      <g id="tiles"></g><g id="links"></g><g id="arrows"></g>
+    </svg>
+    <p class="note">Hover over an arrow to see what was exchanged; click it to keep it in the details pane. Arrows fade as newer exchanges arrive.</p>
+  </section>
+
+  <section class="pane" aria-label="Details">
+    <h2>Exchange</h2>
+    <div class="card" id="card"><span class="note">Start a run to see exchanges here.</span></div>
+    <h2>Over the rounds</h2>
+    <div><span class="note">|SPD|: mean (solid) and worst state (dashed)</span><svg class="chart" id="chartSpd" viewBox="0 0 320 120"></svg></div>
+    <div><span class="note">Accuracy: mean (solid) and worst state (dashed)</span><svg class="chart" id="chartAcc" viewBox="0 0 320 120"></svg></div>
+    <h2>Recent exchanges</h2>
+    <ul id="log"></ul>
+  </section>
+</main>
+<div id="tip" hidden></div>
+
+<script src="/vendor/d3.min.js"></script>
+<script src="/vendor/topojson-client.min.js"></script>
+<script>
+'use strict';
+// State FIPS codes in the map data -> postal codes (the 51 nodes, plus DC drawn without data)
+const FIPS = {'01':'AL','02':'AK','04':'AZ','05':'AR','06':'CA','08':'CO','09':'CT','10':'DE','11':'DC','12':'FL',
+  '13':'GA','15':'HI','16':'ID','17':'IL','18':'IN','19':'IA','20':'KS','21':'KY','22':'LA','23':'ME','24':'MD',
+  '25':'MA','26':'MI','27':'MN','28':'MS','29':'MO','30':'MT','31':'NE','32':'NV','33':'NH','34':'NJ','35':'NM',
+  '36':'NY','37':'NC','38':'ND','39':'OH','40':'OK','41':'OR','42':'PA','44':'RI','45':'SC','46':'SD','47':'TN',
+  '48':'TX','49':'UT','50':'VT','51':'VA','53':'WA','54':'WV','55':'WI','56':'WY','72':'PR'};
+// Small north-eastern states: smaller labels, nudged off the shape so they stay readable
+const NUDGE = {RI: [14, 6], DE: [14, 4], NJ: [11, 2], CT: [-1, 9], MA: [12, -6], MD: [3, -9], NH: [9, 7], VT: [-7, -7]};
+const PR_BOX = [[848, 515], [957, 585]];  // Puerto Rico inset, bottom right (not in the standard US layout)
+let SHAPES = {};  // state -> {d: outline, x, y: the point used for labels and arrows}
+const SPEEDS = [1, 2, 5, 10, 25, 50, 150, Infinity];
+const NS = 'http://www.w3.org/2000/svg';
+const $ = id => document.getElementById(id);
+const center = st => ({x: SHAPES[st].x, y: SHAPES[st].y});
+const fmt = v => v == null ? '–' : v.toFixed(3);
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+let setup = null, metrics = {}, queue = [], shown = 0, runSteps = 0, checkpoints = [];
+let paused = false, budget = 0, last = performance.now(), arrows = [], selected = null, tiles = {};
+
+// ---------- map ----------
+// Outline and centre point of one state. A state in several pieces (Michigan, Hawaii, the Outer Banks of
+// North Carolina) gets the centre of its largest piece, so arrows point at the main body of the state
+function shape(feature, path) {
+  let main = feature;
+  if (feature.geometry.type === 'MultiPolygon')
+    main = feature.geometry.coordinates.map(c => ({type: 'Feature', geometry: {type: 'Polygon', coordinates: c}}))
+      .reduce((a, b) => path.area(b) > path.area(a) ? b : a);
+  const [x, y] = path.centroid(main);
+  return {d: path(feature), x, y};
+}
+async function loadMap() {
+  // us-atlas: the 50 states and DC already laid out (Albers USA, Alaska and Hawaii as insets);
+  // Puerto Rico comes from the unprojected file and is drawn in its own inset
+  const [albers, all] = await Promise.all(['states-albers-10m', 'states-10m']
+    .map(f => fetch(`/vendor/${f}.json`).then(r => r.json())));
+  const path = d3.geoPath();
+  for (const f of topojson.feature(albers, albers.objects.states).features) SHAPES[FIPS[f.id]] = shape(f, path);
+  const pr = topojson.feature(all, all.objects.states).features.find(f => f.id === '72');
+  const box = [[PR_BOX[0][0] + 8, PR_BOX[0][1] + 14], [PR_BOX[1][0] - 8, PR_BOX[1][1] - 6]];
+  SHAPES.PR = shape(pr, d3.geoPath(d3.geoMercator().fitExtent(box, pr)));
+}
+function drawMap() {
+  $('links').replaceChildren(); $('tiles').replaceChildren(); $('arrows').replaceChildren(); arrows = []; tiles = {};
+  const [[x0, y0], [x1, y1]] = PR_BOX;
+  el('rect', {x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: 4, class: 'inset'}, $('tiles'));
+  el('text', {x: x0 + 4, y: y0 + 11, class: 'inset-label'}, $('tiles')).textContent = 'Puerto Rico';
+  for (const st in SHAPES) {
+    const s = SHAPES[st];
+    if (st === 'DC') { el('path', {d: s.d, class: 'dc'}, $('tiles')); continue; }  // not a node
+    const g = el('g', {class: 'state' + (st in NUDGE ? ' small' : '')}, $('tiles'));
+    el('path', {d: s.d, class: 'shape'}, g);
+    const heat = el('path', {d: s.d, class: 'heat', 'fill-opacity': 0}, g);
+    const [nx, ny] = NUDGE[st] || [0, 0];
+    el('text', {x: s.x + nx, y: s.y + ny + 3}, g).textContent = st;
+    const title = el('title', {}, g);
+    tiles[st] = {g, heat, title};
+  }
+  // Shared borders are visible on the map itself; only the island links (Alaska, Hawaii,
+  // Puerto Rico to their mainland partner) are drawn, dashed, since they are not borders
+  if (setup) for (const [a, b] of setup.links.filter(l => l.some(st => ['AK', 'HI', 'PR'].includes(st)))) {
+    const p = center(a), q = center(b);
+    el('line', {x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: 'island'}, $('links'));
+  }
+  paintAll();
+}
+function scale(metric) { return metric === 'accuracy' ? [0.85, 0.5] : [0, 0.25]; }  // [light end, dark end]
+function paint(st) {
+  const t = tiles[st], m = metrics[st]; if (!t) return;
+  if (!m) { t.heat.setAttribute('fill-opacity', 0); return; }
+  const key = $('metric').value, v = m[key], [lo, hi] = scale(key);
+  const share = v == null ? 0 : Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+  t.heat.setAttribute('fill-opacity', (0.08 + 0.85 * share).toFixed(3));
+  const s = setup && setup.states[st];
+  t.title.textContent = s ? `${st}: ${s.rows.toLocaleString()} training rows, ${(100 * s.privileged_share).toFixed(0)}% privileged group\n` +
+    `accuracy ${fmt(m.accuracy)} · |SPD| ${fmt(m.spd)} · |EOD| ${fmt(m.eod)}\nneighbours: ${s.neighbours.join(', ')}` : st;
+}
+function paintAll() {
+  for (const st in tiles) paint(st);
+  const [lo, hi] = scale($('metric').value); $('legLo').textContent = lo; $('legHi').textContent = hi;
+}
+
+// ---------- arrows ----------
+function curve(a, b) {
+  const p = center(a), q = center(b), mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+  const dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1, bend = Math.min(40, 0.25 * len);
+  // Stop just short of both centres so the arrowhead stays visible
+  const ex = q.x - dx / len * 8, ey = q.y - dy / len * 8, sx = p.x + dx / len * 4, sy = p.y + dy / len * 4;
+  return `M${sx},${sy} Q${mx - dy / len * bend},${my + dx / len * bend} ${ex},${ey}`;
+}
+function addArrow(ev, animate) {
+  const g = el('g', {}, $('arrows'));
+  const path = el('path', {d: curve(ev.sender, ev.receiver), class: 'arrow latest', 'marker-end': 'url(#head)'}, g);
+  const hit = el('path', {d: path.getAttribute('d'), class: 'hit'}, g);
+  hit.addEventListener('mousemove', e => showTip(e, ev));
+  hit.addEventListener('mouseleave', () => { $('tip').hidden = true; });
+  hit.addEventListener('click', () => select(ev));
+  arrows.push({g, path});
+  while (arrows.length > 12) arrows.shift().g.remove();
+  arrows.forEach((a, i) => {
+    const age = arrows.length - 1 - i;
+    a.path.setAttribute('opacity', (1 - age / 13).toFixed(2));
+    if (age) a.path.classList.remove('latest');
+  });
+  if (animate) {
+    const dot = el('circle', {r: 6, class: 'dot'}, g), total = path.getTotalLength();
+    const dur = Math.max(120, Math.min(700, 900 / SPEEDS[+$('speed').value])), t0 = performance.now();
+    const move = now => {
+      const f = Math.min(1, (now - t0) / dur), pt = path.getPointAtLength(f * total);
+      dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y);
+      if (f < 1) requestAnimationFrame(move); else dot.remove();
+    };
+    requestAnimationFrame(move);
+  }
+}
+const defs = el('defs', {}, $('map'));
+const marker = el('marker', {id: 'head', viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse'}, defs);
+el('path', {d: 'M0,0 L10,5 L0,10 z', class: 'head'}, marker);
+
+// ---------- exchange details ----------
+function change(before, after, key) {
+  if (before == null || after == null) return '';
+  const d = after - before, better = key === 'accuracy' ? d > 0 : d < 0;
+  if (Math.abs(d) < 0.0005) return '<span>=</span>';
+  return `<span class="${better ? 'better' : 'worse'}">${d > 0 ? '▲' : '▼'} ${Math.abs(d).toFixed(3)}</span>`;
+}
+function exchangeHtml(ev) {
+  const lam = ev.lambda, row = (name, m) => `<tr><td>${name}</td><td>${fmt(m.accuracy)}</td><td>${fmt(m.spd)}</td><td>${fmt(m.eod)}</td></tr>`;
+  return `<span class="title">Step ${ev.step.toLocaleString()} · round ${ev.round.toFixed(1)} · ${ev.sender} → ${ev.receiver}</span>
+    <table><tr><th></th><th>accuracy</th><th>|SPD|</th><th>|EOD|</th></tr>
+    ${row(`${ev.sender}'s model (sent)`, ev.sent)}
+    ${row(`${ev.receiver} before`, ev.before)}
+    ${row(`${ev.receiver} after`, ev.after)}
+    <tr><td>change</td><td>${change(ev.before.accuracy, ev.after.accuracy, 'accuracy')}</td><td>${change(ev.before.spd, ev.after.spd, 'spd')}</td><td>${change(ev.before.eod, ev.after.eod, 'eod')}</td></tr></table>
+    <span class="formula">${ev.receiver} = ${lam} × ${ev.receiver} + ${(1 - lam).toFixed(2)} × ${ev.sender}, then trained on ${ev.rows.toLocaleString()} rows</span>`;
+}
+function showTip(e, ev) {
+  const tip = $('tip'); tip.innerHTML = exchangeHtml(ev).replace('class="title"', 'style="font-weight:600"');
+  tip.hidden = false; tip.style.left = Math.min(e.clientX + 14, innerWidth - 320) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+}
+function select(ev) {
+  selected = ev; $('card').innerHTML = exchangeHtml(ev);
+  for (const li of $('log').children) li.classList.toggle('sel', li.dataset.step == ev.step);
+}
+
+// ---------- curves ----------
+function drawChart(svg, key) {
+  svg.replaceChildren();
+  const W = 320, H = 120, L = 34, B = 18, rounds = setup ? setup.rounds : 1;
+  const pts = checkpoints.filter(c => c[key]);
+  el('line', {x1: L, y1: H - B, x2: W - 4, y2: H - B, class: 'axis'}, svg);
+  el('line', {x1: L, y1: 6, x2: L, y2: H - B, class: 'axis'}, svg);
+  if (!pts.length) return;
+  const vals = pts.flatMap(c => [c[key].mean, c[key].worst]);
+  // All metrics are 0 or more, so the axis never goes below 0
+  let lo = Math.min(...vals), hi = Math.max(...vals); if (hi - lo < 0.01) { lo = Math.max(0, lo - 0.005); hi = lo + 0.01; }
+  const x = r => L + (W - L - 6) * r / rounds, y = v => (H - B) - (H - B - 8) * (v - lo) / (hi - lo);
+  for (const [cls, k] of [['mean', 'mean'], ['worst', 'worst']])
+    el('polyline', {class: cls, points: pts.map(c => `${x(c.round)},${y(c[key][k])}`).join(' ')}, svg);
+  el('text', {x: 2, y: 12}, svg).textContent = hi.toFixed(3);
+  el('text', {x: 2, y: H - B}, svg).textContent = lo.toFixed(3);
+  el('text', {x: L, y: H - 4}, svg).textContent = 'round 0';
+  el('text', {x: W - 52, y: H - 4}, svg).textContent = `round ${rounds}`;
+}
+
+// ---------- playing events ----------
+function apply(ev, animate) {
+  if (ev.type === 'setup') {
+    setup = ev; metrics = {}; checkpoints = [];
+    for (const st in ev.states) metrics[st] = ev.states[st].metrics;
+    $('mapTitle').textContent = `${ev.name} · seed ${ev.seed} · λ ${ev.lambda} · ${ev.rounds} rounds · ${ev.attribute} · ${Math.round(ev.sample_fraction * 100)}% sample`;
+    $('log').replaceChildren(); $('card').innerHTML = '<span class="note">Waiting for the first exchange…</span>';
+    drawMap(); drawChart($('chartSpd'), 'spd'); drawChart($('chartAcc'), 'accuracy');
+  } else if (ev.type === 'exchange') {
+    metrics[ev.receiver] = ev.after; paint(ev.receiver);
+    for (const st in tiles) tiles[st].g.classList.remove('send', 'recv');
+    tiles[ev.sender].g.classList.add('send'); tiles[ev.receiver].g.classList.add('recv');
+    addArrow(ev, animate);
+    if (!selected || selected.step < ev.step - 1 || animate) select(ev);
+    const li = document.createElement('li'); li.dataset.step = ev.step;
+    li.textContent = `${String(ev.step).padStart(5)}  ${ev.sender} → ${ev.receiver}  |SPD| ${fmt(ev.before.spd)} → ${fmt(ev.after.spd)}`;
+    li.addEventListener('click', () => select(ev));
+    $('log').prepend(li); while ($('log').children.length > 60) $('log').lastChild.remove();
+  } else if (ev.type === 'checkpoint') {
+    checkpoints.push(ev); drawChart($('chartSpd'), 'spd'); drawChart($('chartAcc'), 'accuracy');
+  }
+}
+function progress() {
+  const total = setup ? setup.steps : 0;
+  const shownSteps = queue.slice(0, shown).filter(e => e.type === 'exchange').length;
+  $('showProgress').textContent = total ? `${shownSteps.toLocaleString()} / ${total.toLocaleString()} (round ${(shownSteps / 51).toFixed(1)})` : '–';
+  $('runProgress').textContent = total ? `${runSteps.toLocaleString()} / ${total.toLocaleString()}` : '–';
+}
+function playNext(animate) {
+  // Plays queued events up to and including the next exchange; returns false when nothing is left
+  while (shown < queue.length) {
+    const ev = queue[shown++]; apply(ev, animate);
+    if (ev.type === 'exchange') return true;
+  }
+  return false;
+}
+function tick(now) {
+  const dt = (now - last) / 1000; last = now;
+  if (!paused) {
+    const speed = SPEEDS[+$('speed').value];
+    if (speed === Infinity) { while (playNext(false)); }
+    else { budget = Math.min(budget + speed * dt, 3); while (budget >= 1 && playNext(speed <= 25)) budget -= 1; if (shown >= queue.length) budget = 0; }
+  }
+  progress();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ---------- server ----------
+function connect() {
+  const es = new EventSource('/api/events');
+  es.onopen = () => { if ($('status').textContent.startsWith('Connecting') || $('status').textContent.startsWith('Server')) $('status').textContent = 'Connected. Start a run.'; };
+  es.onerror = () => { $('status').textContent = 'Server not reachable. Is experiment_pane/server.py running?'; };
+  es.onmessage = e => {
+    const ev = JSON.parse(e.data);
+    if (ev.type === 'reset') { queue = []; shown = 0; runSteps = 0; setup = null; selected = null; $('saved').hidden = true; return; }
+    queue.push(ev);
+    if (ev.type === 'exchange') runSteps = ev.step;
+    if (ev.type === 'status') $('status').textContent = `Run: ${ev.message}…`;
+    if (ev.type === 'setup') $('status').textContent = 'Run in progress.';
+    if (ev.type === 'done') $('status').textContent = `Run finished in ${ev.seconds}s. The display may still be catching up.`;
+    if (ev.type === 'stopped') $('status').textContent = 'Run stopped.';
+    if (ev.type === 'error') $('status').textContent = `Run failed: ${ev.message}`;
+    if (ev.type === 'saved') { $('saved').textContent = ev.message; $('saved').classList.remove('bad'); $('saved').hidden = false; }
+  };
+}
+async function post(path, body) {
+  const r = await fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+  if (!r.ok) { const msg = (await r.json()).error; $('status').textContent = msg;
+    $('saved').textContent = msg; $('saved').classList.add('bad'); $('saved').hidden = false; }
+}
+$('start').onclick = () => post('/api/start', {experiment_name: $('expName').value, lambda: +$('lam').value, rounds: +$('rounds').value, seed: +$('seed').value, sample_fraction: +$('frac').value});
+$('stop').onclick = () => post('/api/stop');
+$('pause').onclick = () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; };
+$('step').onclick = () => { paused = true; $('pause').textContent = 'Resume'; playNext(true); };
+$('latest').onclick = () => { while (playNext(false)); };
+$('speed').oninput = () => { const s = SPEEDS[+$('speed').value]; $('speedLabel').textContent = s === Infinity ? 'as fast as possible:' : s; };
+$('metric').onchange = paintAll;
+// Light / dark toggle, remembered in this browser
+(() => {
+  const root = document.documentElement;
+  try { const saved = localStorage.getItem('pane-theme'); if (saved) root.dataset.theme = saved; } catch (e) {}
+  $('themeBtn').onclick = () => {
+    const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark';
+    try { localStorage.setItem('pane-theme', root.dataset.theme); } catch (e) {}
+  };
+})();
+fetch('/api/config').then(r => r.json()).then(c => {
+  $('expName').value = c.experiment_name; $('lam').value = c.lambda; $('rounds').value = c.rounds;
+  $('frac').value = String(c.sample_fraction);
+}).catch(() => {});
+loadMap().then(() => { drawMap(); connect(); })
+  .catch(e => { $('status').textContent = `The map failed to load: ${e}`; });
+</script>
+</body>
+</html>

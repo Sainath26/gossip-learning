@@ -1,7 +1,7 @@
 """
 Local server for the control panel (artifacts/control_panel.html).
 
-    python server.py            then open http://localhost:8000
+    python control_pane/server.py    then open http://localhost:8000
 
 Experiments run as subprocesses: watch.py for one slowed-down run, run.py for
 the batch. Their JSON lines are relayed to the browser as Server-Sent Events.
@@ -42,9 +42,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-# Every path is relative to the folder holding this file. They assume it sits
-# in the experiment folder, next to run.py, watch.py, artifacts/ and results/
-ROOT = Path(__file__).resolve().parent
+# This file sits in control_pane/, next to watch.py. ROOT is the experiment
+# folder above it, which holds run.py, artifacts/ and results/
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
 PANEL = ROOT / "artifacts" / "control_panel.html"
 RESULTS = ROOT / "results"
 SEEDS = range(1, 101)
@@ -53,7 +54,7 @@ SEEDS = range(1, 101)
 # else is rejected before it reaches a command line
 WATCH_CHOICES = {"setting": {"fl", "gossip"},
                  "method": {"fedavg", "fairfed", "fair2zero", "avg"},
-                 "metric": {"spd", "eod"}, "topology": {"ring", "full"}}
+                 "metric": {"spd", "eod"}, "topology": {"ring", "full", "kreg3"}}
 
 
 class Hub:
@@ -210,7 +211,7 @@ class State:
                 raise ValueError(f"invalid {k}: {args[k]}")
         # -u: unbuffered output, so events arrive as soon as they are printed.
         # Numeric options go through float() / int() to validate them
-        cmd = [sys.executable, "-u", "watch.py"]
+        cmd = [sys.executable, "-u", str(HERE / "watch.py")]
         for k, v in args.items():
             cmd += [f"--{k}", v]
         cmd += ["--beta", str(float(body.get("beta", 0.05))),
@@ -269,7 +270,8 @@ def run_module():
     # run.py imports torch, so load it only when the panel first asks
     global _run
     if _run is None:
-        import run
+        sys.path.insert(0, str(ROOT))
+        import archive.run as run
         _run = run
     return _run
 
