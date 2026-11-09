@@ -102,6 +102,9 @@ def gossip(data, graph, config, seed, on_step=None):
     # accuracy, SPD and EOD on the shared test set and the number of messages sent.
     # on_step(step, sender, receiver, models) is called after each exchange (for the experiment pane)
     g, tr = config['gossip'], config['training']
+    if not 0 <= g['lambda'] <= 1:
+        # Outside 0..1 the merge is no longer an average and the weights blow up
+        raise ValueError(f"lambda must be between 0 and 1, got {g['lambda']}")
     nodes = {st: to_tensors(arrays) for st, arrays in data['nodes'].items()}
     test = to_tensors(data['test'])
 

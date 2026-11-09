@@ -2,6 +2,7 @@
 Imports
 """
 import hashlib
+import os
 import re
 from pathlib import Path
 import numpy as np
@@ -199,7 +200,11 @@ def prepare(config, seed):
         sample = draw_sample(full, data['sample_fraction'], data['min_rows_per_state'], seed, attribute)
         train, test = split(sample, data['test_fraction'], seed, attribute)
         folder.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(path, train=train.index.to_numpy(), test=test.index.to_numpy())
+        # Write then rename, so a run stopped mid-write never leaves a broken split file
+        tmp = path.with_suffix('.npz.tmp')
+        with open(tmp, 'wb') as f:
+            np.savez_compressed(f, train=train.index.to_numpy(), test=test.index.to_numpy())
+        os.replace(tmp, path)
 
     cats = _categories(full, attribute)
     train_arrays, test_arrays = encode(train, test, cats, attribute, data['standardise_on'])

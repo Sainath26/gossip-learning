@@ -1,5 +1,5 @@
 {
-  "experiment_name": "pilot 2",
+  "experiment_name": "Experiment_1_lambda_0.5",
 
   "data": {
     "survey_year": 2018,
@@ -22,7 +22,7 @@
   },
 
   "gossip": {
-    "lambda": 0.25,
+    "lambda": 0.5,
     "rounds": 50,
     "eval_checkpoint_every": 5
   },
@@ -41,7 +41,7 @@
     "local_only_epochs": 25
   },
 
-  "seeds": 100,
+  "seeds": 50,
 
   "compute": {
     "workers": 4

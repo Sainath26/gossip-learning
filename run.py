@@ -59,13 +59,19 @@ def seed_path(folder, seed):
     return folder / f'seed_{seed:03d}.json'
 
 
+def _settings(config):
+    # The settings that change a seed's result: everything except how many seeds and workers
+    return {k: v for k, v in config.items() if k not in ('seeds', 'compute')}
+
+
 def claim_folder(config):
     # The experiment's results folder, with a copy of the config saved in it. A folder that
-    # already holds results from different settings is never reused (raises ValueError).
+    # already holds results from different settings is never reused (raises ValueError);
+    # changing only the number of seeds or workers is allowed, so more seeds can be added later.
     # Shared with the experiment pane, so both save results the same way
     folder = ROOT / config['output']['results_dir'] / config['experiment_name']
     saved = folder / 'config.json'
-    if saved.exists() and json.loads(saved.read_text()) != config:
+    if saved.exists() and _settings(json.loads(saved.read_text())) != _settings(config):
         raise ValueError(f"results/{config['experiment_name']} holds results from different settings; "
                          f"use another experiment name")
     folder.mkdir(parents=True, exist_ok=True)
@@ -84,6 +90,8 @@ def save_result(folder, result):
 
 def main():
     config = load_config()
+    if not 0 <= config['gossip']['lambda'] <= 1:
+        raise SystemExit(f"lambda must be between 0 and 1 (got {config['gossip']['lambda']}): fix configs.json")
     try:
         folder = claim_folder(config)
     except ValueError as e:
